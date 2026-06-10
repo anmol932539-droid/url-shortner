@@ -20,20 +20,25 @@ public class RedirectController {
 
     @GetMapping("/{code}")
     public ResponseEntity<String> redirect(@PathVariable String code) {
-        if ("favicon.ico".equalsIgnoreCase(code) || "index.html".equalsIgnoreCase(code)) {
-            return ResponseEntity.notFound().build();
-        }
-
+        if (isIgnoredCode(code)) return ResponseEntity.notFound().build();
         UrlMapping mapping = service.resolve(code);
-        if (mapping != null) {
-            return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY) // 301 Redirect
-                    .header(HttpHeaders.LOCATION, mapping.originalUrl())
-                    .build();
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body("{\"error\": \"Short code not found\"}");
-        }
+        return mapping != null ? buildRedirect(mapping) : buildNotFound();
+    }
+
+    private boolean isIgnoredCode(String code) {
+        return "favicon.ico".equalsIgnoreCase(code) || "index.html".equalsIgnoreCase(code);
+    }
+
+    private ResponseEntity<String> buildRedirect(UrlMapping mapping) {
+        return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)
+                .header(HttpHeaders.LOCATION, mapping.getOriginalUrl())
+                .build();
+    }
+
+    private ResponseEntity<String> buildNotFound() {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"error\": \"Short code not found\"}");
     }
 
 }

@@ -20,12 +20,12 @@ public class Database {
     }
 
     public void put(UrlMapping mapping) {
-        mappings.put(mapping.shortCode(), mapping);
+        mappings.put(mapping.getShortCode(), mapping);
     }
 
     public Optional<UrlMapping> findByOriginalUrl(String originalUrl) {
         return mappings.values().stream()
-            .filter(m -> !m.isCustom() && m.originalUrl().equals(originalUrl))
+            .filter(m -> !m.isCustom() && m.getOriginalUrl().equals(originalUrl))
             .findFirst();
     }
 

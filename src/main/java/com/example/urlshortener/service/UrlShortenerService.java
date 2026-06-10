@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 @Service
 public class UrlShortenerService {
     private static final String BASE62_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    private static final long START_COUNTER = 100_000_000L; // 5 characters in Base62
+    private static final long START_COUNTER = 100_000_000L;
     private static final Pattern ALIAS_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{3,30}$");
     private static final Set<String> RESERVED_WORDS = Set.of(
         "shorten", "analytics", "health", "favicon.ico", "static", "assets", "api"
@@ -38,28 +38,34 @@ public class UrlShortenerService {
     private long initializeCounter() {
         long maxId = START_COUNTER;
         for (String code : database.getAllMappings().keySet()) {
-            UrlMapping mapping = database.get(code).orElse(null);
-            if (mapping != null && !mapping.isCustom()) {
-                try {
-                    long id = decodeBase62(code);
-                    if (id > maxId) {
-                        maxId = id;
-                    }
-                } catch (IllegalArgumentException ignored) {
-                    // If it can't be decoded, treat it as custom or skip
-                }
-            }
+            maxId = updateMaxIdIfValidCode(code, maxId);
         }
         return maxId == START_COUNTER ? START_COUNTER : maxId + 1;
     }
 
+    private long updateMaxIdIfValidCode(String code, long currentMax) {
+        UrlMapping mapping = database.get(code).orElse(null);
+        if (mapping != null && !mapping.isCustom()) {
+            return Math.max(currentMax, tryDecode(code));
+        }
+        return currentMax;
+    }
+
+    private long tryDecode(String code) {
+        try {
+            return decodeBase62(code);
+        } catch (IllegalArgumentException e) {
+            return -1;
+        }
+    }
+
     public static String encodeBase62(long num) {
-        if (num < 0) {
-            throw new IllegalArgumentException("Number must be non-negative");
-        }
-        if (num == 0) {
-            return String.valueOf(BASE62_ALPHABET.charAt(0));
-        }
+        if (num < 0) throw new IllegalArgumentException("Number must be non-negative");
+        if (num == 0) return String.valueOf(BASE62_ALPHABET.charAt(0));
+        return buildBase62String(num);
+    }
+
+    private static String buildBase62String(long num) {
         StringBuilder sb = new StringBuilder();
         while (num > 0) {
             sb.append(BASE62_ALPHABET.charAt((int) (num % 62)));
@@ -72,110 +78,106 @@ public class UrlShortenerService {
         if (str == null || str.isEmpty()) {
             throw new IllegalArgumentException("String cannot be null or empty");
         }
+        return computeBase62Decode(str);
+    }
+
+    private static long computeBase62Decode(String str) {
         long num = 0;
         for (int i = 0; i < str.length(); i++) {
             char c = str.charAt(i);
             int index = BASE62_ALPHABET.indexOf(c);
-            if (index == -1) {
-                throw new IllegalArgumentException("Invalid Base62 character: " + c);
-            }
+            if (index == -1) throw new IllegalArgumentException("Invalid character");
             num = num * 62 + index;
         }
         return num;
     }
 
     public boolean isValidUrl(String urlString) {
-        if (urlString == null || urlString.trim().isEmpty()) {
-            return false;
-        }
+        if (urlString == null || urlString.trim().isEmpty()) return false;
         try {
             URI uri = new URI(urlString);
-            String scheme = uri.getScheme();
-            if (scheme == null || (!scheme.equalsIgnoreCase("http") && !scheme.equalsIgnoreCase("https"))) {
-                return false;
-            }
-            String host = uri.getHost();
-            if (host == null || host.trim().isEmpty()) {
-                return false;
-            }
-
-            // Prevent self-shortening loop
-            if (isSelfReferencing(uri)) {
-                return false;
-            }
-
-            return true;
+            return hasValidScheme(uri) && hasValidHost(uri) && !isSelfReferencing(uri);
         } catch (URISyntaxException e) {
             return false;
         }
     }
 
-    private boolean isSelfReferencing(URI uri) {
-        String host = uri.getHost();
-        int port = uri.getPort();
-        
-        if (port == -1) {
-            if ("http".equalsIgnoreCase(uri.getScheme())) {
-                port = 80;
-            } else if ("https".equalsIgnoreCase(uri.getScheme())) {
-                port = 443;
-            }
-        }
+    private boolean hasValidScheme(URI uri) {
+        String scheme = uri.getScheme();
+        return scheme != null && (scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"));
+    }
 
-        int localPort = servicePort;
-        boolean hostMatches = host.equalsIgnoreCase("localhost") || 
-                             host.equalsIgnoreCase("127.0.0.1") || 
-                             host.equalsIgnoreCase(serviceHost);
-        
-        return hostMatches && port == localPort;
+    private boolean hasValidHost(URI uri) {
+        String host = uri.getHost();
+        return host != null && !host.trim().isEmpty();
+    }
+
+    private boolean isSelfReferencing(URI uri) {
+        int port = extractPort(uri);
+        boolean hostMatches = isLocalHost(uri.getHost());
+        return hostMatches && port == servicePort;
+    }
+
+    private int extractPort(URI uri) {
+        int port = uri.getPort();
+        if (port == -1) {
+            return "http".equalsIgnoreCase(uri.getScheme()) ? 80 : 443;
+        }
+        return port;
+    }
+
+    private boolean isLocalHost(String host) {
+        if (host == null) return false;
+        return host.equalsIgnoreCase("localhost") || 
+               host.equalsIgnoreCase("127.0.0.1") || 
+               host.equalsIgnoreCase(serviceHost);
     }
 
     public boolean isValidAlias(String alias) {
-        if (alias == null) {
-            return false;
-        }
-        if (RESERVED_WORDS.contains(alias.toLowerCase())) {
-            return false;
-        }
+        if (alias == null) return false;
+        if (RESERVED_WORDS.contains(alias.toLowerCase())) return false;
         return ALIAS_PATTERN.matcher(alias).matches();
     }
 
     public UrlMapping shortenUrl(String originalUrl, String customAlias) throws Exception {
         if (!isValidUrl(originalUrl)) {
-            throw new IllegalArgumentException("Malformed or unsupported URL. Only http/https are allowed, and self-referencing URLs are forbidden.");
+            throw new IllegalArgumentException("Malformed or unsupported URL.");
         }
-
         if (customAlias != null && !customAlias.isEmpty()) {
-            if (!isValidAlias(customAlias)) {
-                throw new IllegalArgumentException("Invalid alias. Must be alphanumeric/hyphen/underscore (3-30 chars) and not a reserved word.");
-            }
-            if (database.exists(customAlias)) {
-                throw new IllegalStateException("Alias already in use.");
-            }
-            
-            UrlMapping mapping = new UrlMapping(
-                customAlias, originalUrl, true, System.currentTimeMillis()
-            );
-            database.put(mapping);
-            return mapping;
-        } else {
-            var existing = database.findByOriginalUrl(originalUrl);
-            if (existing.isPresent()) {
-                return existing.get();
-            }
-
-            String shortCode;
-            do {
-                long id = counter.getAndIncrement();
-                shortCode = encodeBase62(id);
-            } while (database.exists(shortCode));
-
-            UrlMapping mapping = new UrlMapping(
-                shortCode, originalUrl, false, System.currentTimeMillis()
-            );
-            database.put(mapping);
-            return mapping;
+            return handleCustomAlias(originalUrl, customAlias);
         }
+        return handleRandomAlias(originalUrl);
+    }
+
+    private UrlMapping handleCustomAlias(String originalUrl, String customAlias) {
+        if (!isValidAlias(customAlias)) {
+            throw new IllegalArgumentException("Invalid alias.");
+        }
+        if (database.exists(customAlias)) {
+            throw new IllegalStateException("Alias already in use.");
+        }
+        UrlMapping mapping = new UrlMapping(customAlias, originalUrl, true, System.currentTimeMillis());
+        database.put(mapping);
+        return mapping;
+    }
+
+    private UrlMapping handleRandomAlias(String originalUrl) {
+        var existing = database.findByOriginalUrl(originalUrl);
+        if (existing.isPresent()) return existing.get();
+
+        String shortCode = generateUniqueShortCode();
+        UrlMapping mapping = new UrlMapping(shortCode, originalUrl, false, System.currentTimeMillis());
+        database.put(mapping);
+        return mapping;
+    }
+
+    private String generateUniqueShortCode() {
+        String shortCode;
+        do {
+            long id = counter.getAndIncrement();
+            shortCode = encodeBase62(id);
+        } while (database.exists(shortCode));
+        return shortCode;
     }
 
     public UrlMapping getMapping(String shortCode) {

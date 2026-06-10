@@ -1,5 +1,7 @@
 package com.example.urlshortener.controller;
 
+import com.example.urlshortener.dto.ShortenRequest;
+import com.example.urlshortener.dto.ShortenResponse;
 import com.example.urlshortener.model.UrlMapping;
 import com.example.urlshortener.service.UrlShortenerService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,45 +20,13 @@ public class UrlController {
         this.service = service;
     }
 
-    public record ShortenRequest(String url, String alias) {}
-
-    public record ShortenResponse(
-        String short_url,
-        String code,
-        String original_url,
-        boolean is_custom,
-        long created_at
-    ) {}
-
     @PostMapping("/shorten")
     public ResponseEntity<?> shorten(@RequestBody ShortenRequest request, HttpServletRequest servletRequest) {
-        String originalUrl = request.url();
-        String customAlias = request.alias();
-
-        if (originalUrl == null || originalUrl.trim().isEmpty()) {
+        if (!isValidRequest(request)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Missing required parameter: url"));
         }
-
         try {
-            UrlMapping mapping = service.shortenUrl(originalUrl.trim(), customAlias != null ? customAlias.trim() : null);
-            
-            // Reconstruct the request's host to create the absolute short url
-            String host = servletRequest.getHeader("Host");
-            if (host == null) {
-                host = "localhost:8080";
-            }
-            String scheme = servletRequest.getScheme(); // http or https
-            String shortUrl = scheme + "://" + host + "/" + mapping.shortCode();
-
-            ShortenResponse response = new ShortenResponse(
-                shortUrl,
-                mapping.shortCode(),
-                mapping.originalUrl(),
-                mapping.isCustom(),
-                mapping.createdAt()
-            );
-
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return processShortenRequest(request, servletRequest);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (IllegalStateException e) {
@@ -64,5 +34,39 @@ public class UrlController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
         }
+    }
+
+    private boolean isValidRequest(ShortenRequest request) {
+        String originalUrl = request.getUrl();
+        return originalUrl != null && !originalUrl.trim().isEmpty();
+    }
+
+    private ResponseEntity<?> processShortenRequest(ShortenRequest request, HttpServletRequest servletRequest) throws Exception {
+        String originalUrl = request.getUrl().trim();
+        String alias = request.getAlias();
+        String customAlias = alias != null ? alias.trim() : null;
+        
+        UrlMapping mapping = service.shortenUrl(originalUrl, customAlias);
+        ShortenResponse response = createResponse(mapping, servletRequest);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    private ShortenResponse createResponse(UrlMapping mapping, HttpServletRequest request) {
+        String shortUrl = buildAbsoluteUrl(request, mapping.getShortCode());
+        return new ShortenResponse(
+            shortUrl,
+            mapping.getShortCode(),
+            mapping.getOriginalUrl(),
+            mapping.isCustom(),
+            mapping.getCreatedAt()
+        );
+    }
+
+    private String buildAbsoluteUrl(HttpServletRequest request, String shortCode) {
+        String host = request.getHeader("Host");
+        if (host == null) {
+            host = "localhost:8080";
+        }
+        return request.getScheme() + "://" + host + "/" + shortCode;
     }
 }

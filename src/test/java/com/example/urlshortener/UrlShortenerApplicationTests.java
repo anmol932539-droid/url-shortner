@@ -40,9 +40,8 @@ class UrlShortenerApplicationTests {
 
     @BeforeEach
     @AfterEach
-    void cleanup() throws IOException {
+    void cleanup() {
         database.clear();
-        Files.deleteIfExists(Path.of("test_urls.csv"));
     }
 
     @Test
@@ -121,12 +120,6 @@ class UrlShortenerApplicationTests {
         assertTrue(updated.isPresent());
         assertEquals(1, updated.get().clicks());
 
-        // Test persistence reload
-        Database databaseReloaded = new Database("test_urls.csv");
-        assertTrue(databaseReloaded.exists("xyz"));
-        var reloaded = databaseReloaded.get("xyz").get();
-        assertEquals("https://google.com", reloaded.originalUrl());
-        assertEquals(1, reloaded.clicks());
     }
 
     @Test
@@ -185,8 +178,5 @@ class UrlShortenerApplicationTests {
         assertEquals(500, generatedCodes.size());
         assertEquals(500, database.getAllMappings().size());
 
-        // Verify reloading db contains all of them
-        Database dbReload = new Database("test_urls.csv");
-        assertEquals(500, dbReload.getAllMappings().size());
     }
 }

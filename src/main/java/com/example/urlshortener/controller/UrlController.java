@@ -67,27 +67,4 @@ public class UrlController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Internal Server Error: " + e.getMessage()));
         }
     }
-
-    @GetMapping("/analytics/{code}")
-    public ResponseEntity<?> getAnalytics(@PathVariable String code) {
-        if (code == null || code.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Short code missing from analytics path."));
-        }
-
-        UrlMapping mapping = service.getMapping(code.trim());
-        if (mapping == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Short code not found."));
-        }
-
-        ShortenResponse response = new ShortenResponse(
-            null,
-            mapping.shortCode(),
-            mapping.originalUrl(),
-            mapping.isCustom(),
-            mapping.createdAt(),
-            mapping.clicks()
-        );
-
-        return ResponseEntity.ok(response);
-    }
 }

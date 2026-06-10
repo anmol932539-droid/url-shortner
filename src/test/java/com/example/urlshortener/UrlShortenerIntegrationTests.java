@@ -8,7 +8,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.*;
 
@@ -21,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * and make real HTTP requests to the API endpoints.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureTestRestTemplate
 class UrlShortenerIntegrationTests {
 
     @LocalServerPort
@@ -181,9 +183,12 @@ class UrlShortenerIntegrationTests {
         restTemplate.postForEntity(baseUrl() + "/shorten", request, ShortenResponse.class);
 
         // Hit the redirect endpoint (don't follow redirects)
+        TestRestTemplate nonRedirectingTemplate = restTemplate.withRedirects(
+            org.springframework.boot.http.client.HttpRedirects.DONT_FOLLOW
+        );
         HttpHeaders headers = new HttpHeaders();
         HttpEntity<Void> entity = new HttpEntity<>(headers);
-        ResponseEntity<String> response = restTemplate.exchange(
+        ResponseEntity<String> response = nonRedirectingTemplate.exchange(
             baseUrl() + "/goog", HttpMethod.GET, entity, String.class
         );
 

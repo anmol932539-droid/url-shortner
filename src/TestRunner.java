@@ -17,7 +17,7 @@ public class TestRunner {
     private static int testsRun = 0;
     private static int testsPassed = 0;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         System.out.println("==================================================");
         System.out.println("      Starting URL Shortener Test Suite           ");
         System.out.println("==================================================");

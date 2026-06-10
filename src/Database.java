@@ -66,7 +66,9 @@ public class Database {
 
     public void save() {
         lock.readLock().lock();
-        Path tempPath = dbPath.resolveSibling(dbPath.getFileName().toString() + ".tmp");
+        Path tempPath = dbPath.resolveSibling(
+            dbPath.getFileName().toString() + "." + Thread.currentThread().threadId() + "." + System.nanoTime() + ".tmp"
+        );
         try {
             try (BufferedWriter writer = Files.newBufferedWriter(tempPath, StandardCharsets.UTF_8)) {
                 for (UrlMapping mapping : mappings.values()) {
@@ -80,7 +82,26 @@ public class Database {
                     ));
                 }
             }
-            Files.move(tempPath, dbPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            
+            // Retry loop for Windows file system transient lock delays
+            int retries = 0;
+            while (true) {
+                try {
+                    Files.move(tempPath, dbPath, StandardCopyOption.REPLACE_EXISTING);
+                    break;
+                } catch (IOException e) {
+                    retries++;
+                    if (retries > 5) {
+                        throw e;
+                    }
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw e;
+                    }
+                }
+            }
         } catch (IOException e) {
             System.err.println("Error saving database: " + e.getMessage());
         } finally {

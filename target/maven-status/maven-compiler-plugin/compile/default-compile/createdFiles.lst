@@ -1,8 +1,0 @@
-com\example\urlshortener\UrlShortenerApplication.class
-com\example\urlshortener\controller\UrlController.class
-com\example\urlshortener\repository\Database.class
-com\example\urlshortener\controller\UrlController$ShortenRequest.class
-com\example\urlshortener\model\UrlMapping.class
-com\example\urlshortener\controller\RedirectController.class
-com\example\urlshortener\service\UrlShortenerService.class
-com\example\urlshortener\controller\UrlController$ShortenResponse.class

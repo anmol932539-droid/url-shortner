@@ -40,9 +40,8 @@ class UrlShortenerApplicationTests {
 
     @BeforeEach
     @AfterEach
-    void cleanup() throws IOException {
+    void cleanup() {
         database.clear();
-        Files.deleteIfExists(Path.of("test_urls.csv"));
     }
 
     @Test
@@ -106,46 +105,32 @@ class UrlShortenerApplicationTests {
 
     @Test
     void testDatabaseOperations() {
-        UrlMapping m1 = new UrlMapping("xyz", "https://google.com", false, System.currentTimeMillis(), 0);
+        UrlMapping m1 = new UrlMapping("xyz", "https://google.com", false, System.currentTimeMillis());
         database.put(m1);
 
         assertTrue(database.exists("xyz"));
         var fetched = database.get("xyz");
         assertTrue(fetched.isPresent());
-        assertEquals("https://google.com", fetched.get().originalUrl());
-        assertEquals(0, fetched.get().clicks());
-
-        // Increment clicks
-        database.incrementClicks("xyz");
-        var updated = database.get("xyz");
-        assertTrue(updated.isPresent());
-        assertEquals(1, updated.get().clicks());
-
-        // Test persistence reload
-        Database databaseReloaded = new Database("test_urls.csv");
-        assertTrue(databaseReloaded.exists("xyz"));
-        var reloaded = databaseReloaded.get("xyz").get();
-        assertEquals("https://google.com", reloaded.originalUrl());
-        assertEquals(1, reloaded.clicks());
+        assertEquals("https://google.com", fetched.get().getOriginalUrl());
     }
 
     @Test
     void testDuplicateUrlHandling() throws Exception {
         // Shorten a URL the first time
         UrlMapping m1 = service.shortenUrl("https://example.com", null);
-        String code1 = m1.shortCode();
+        String code1 = m1.getShortCode();
 
         // Shorten the SAME URL without custom alias
         UrlMapping m2 = service.shortenUrl("https://example.com", null);
-        String code2 = m2.shortCode();
+        String code2 = m2.getShortCode();
 
         // Should return the exact same mapping/code (idempotent duplicate URL handling)
         assertEquals(code1, code2);
-        assertEquals(m1.createdAt(), m2.createdAt());
+        assertEquals(m1.getCreatedAt(), m2.getCreatedAt());
 
         // Shorten the SAME URL but WITH a custom alias
         UrlMapping m3 = service.shortenUrl("https://example.com", "my-custom-example");
-        String code3 = m3.shortCode();
+        String code3 = m3.getShortCode();
 
         // Custom alias should be honored as a distinct mapping
         assertEquals("my-custom-example", code3);
@@ -168,7 +153,7 @@ class UrlShortenerApplicationTests {
                     for (int j = 0; j < operationsPerThread; j++) {
                         String url = "https://example.com/thread-" + threadId + "-op-" + j;
                         UrlMapping mapping = service.shortenUrl(url, null);
-                        generatedCodes.add(mapping.shortCode());
+                        generatedCodes.add(mapping.getShortCode());
                     }
                 } catch (Throwable t) {
                     errors.add(t);
@@ -185,8 +170,5 @@ class UrlShortenerApplicationTests {
         assertEquals(500, generatedCodes.size());
         assertEquals(500, database.getAllMappings().size());
 
-        // Verify reloading db contains all of them
-        Database dbReload = new Database("test_urls.csv");
-        assertEquals(500, dbReload.getAllMappings().size());
     }
 }

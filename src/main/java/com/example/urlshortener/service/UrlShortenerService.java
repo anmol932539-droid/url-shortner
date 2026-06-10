@@ -4,6 +4,7 @@ import com.example.urlshortener.model.UrlMapping;
 import com.example.urlshortener.repository.Database;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.core.env.Environment;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -24,14 +25,17 @@ public class UrlShortenerService {
     private final AtomicLong counter;
     private final String serviceHost;
     private final int servicePort;
+    private final Environment environment;
 
     public UrlShortenerService(
             Database database,
             @Value("${app.service.host:localhost}") String serviceHost,
-            @Value("${server.port:8080}") int servicePort) {
+            @Value("${server.port:8080}") int servicePort,
+            Environment environment) {
         this.database = database;
         this.serviceHost = serviceHost;
         this.servicePort = servicePort;
+        this.environment = environment;
         this.counter = new AtomicLong(initializeCounter());
     }
 
@@ -115,7 +119,15 @@ public class UrlShortenerService {
     private boolean isSelfReferencing(URI uri) {
         int port = extractPort(uri);
         boolean hostMatches = isLocalHost(uri.getHost());
-        return hostMatches && port == servicePort;
+        
+        int activePort = servicePort;
+        if (activePort == 0) {
+            String localPortStr = environment.getProperty("local.server.port");
+            if (localPortStr != null) {
+                activePort = Integer.parseInt(localPortStr);
+            }
+        }
+        return hostMatches && port == activePort;
     }
 
     private int extractPort(URI uri) {

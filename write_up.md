@@ -1,41 +1,54 @@
-# URL Shortener & Link Analytics Reflection Write-up (Spring Boot Migration)
+1. What did you ask the AI to do, and what did you write or decide yourself?
 
-This document outlines the design decisions, trade-offs, and reflections for the Linkly URL Shortener service, migrated to Spring Boot.
+I used AI primarily as a design and implementation assistant to understand the URL shortener requirements, discuss API contracts, validate URLs, design short-code generation strategies, and understand redirect behavior.
 
----
+I reviewed the generated code thoroughly, tested the implementation, and fixed issues where the behavior did not align with the requirements. For example, I corrected the handling of unknown short codes to ensure the service returns a 404 response.
 
-### 1. What did you ask the AI to do, and what did you write or decide yourself?
-- **AI Instructions**: The AI was directed to migrate the previous raw Java implementation to Spring Boot for cleaner HTTP routing, REST controller structuring, and standardized dependency management.
-- **My Decisions & Implementations**:
-  - **Spring Boot Bootstrapping**: I decided to download a Maven wrapper project structure using Spring Initializr (`start.spring.io`) programmatically to introduce dependencies like `spring-boot-starter-web` and `spring-boot-starter-test` without requiring local Maven installations.
-  - **Controller Restructuring**: I divided the web layer into `UrlController` (an API `@RestController` for `/shorten` and `/analytics/{code}` with native Jackson mapping) and `RedirectController` (a `@Controller` for capturing dynamic `/{code}` path variables to handle 301 redirects and return custom 404 HTML).
-  - **Static Asset Routing**: I placed our premium glassmorphic dashboard UI at `src/main/resources/static/index.html` to leverage Spring Boot's automatic static file index resolution.
-  - **Spring Service Integration**: Registered `Database` as `@Repository` and `UrlShortenerService` as `@Service` with property-injected configurations (`@Value`).
+The key design decisions were made by me, including:
 
----
+The short-code generation strategy.
+Returning 404 for unknown short codes.
+Making custom alias creation idempotent when the same alias is requested for the same URL.
+URL validation before creating mappings.
 
-### 2. Where did you override, correct, or throw away the AI’s output — and why?
-- **Java Compiler Release Restriction**:
-  - *The Issue*: The default Initializr script set the Java version target to 17 in `pom.xml`. However, compiling our database persistence layer failed because it references `Thread.threadId()`, which was introduced in Java 19.
-  - *The Correction*: I overrode the Java compiler version in `pom.xml` by changing the property `<java.version>17</java.version>` to `<java.version>21</java.version>`. Since the system runs on the Java 25 JDK, targeting Java 21 is fully compatible and allowed the compilation of modern thread methods.
-- **PowerShell Argument Parsing**: I corrected Maven test commands by removing unescaped `-D` logger flags that PowerShell parsed incorrectly, which previously caused Maven to search for missing lifecycle phases.
 
----
+2. Where did you override, correct, or throw away the AI's output — and why?
 
-### 3. The two or three biggest trade-offs you made, and the alternatives you considered?
-- **Trade-off 1: Spring Boot vs. Raw Java `HttpServer`**
-  - *Alternative*: Continue using Java's built-in `HttpServer` class.
-  - *Trade-off*: While raw Java was lightweight (booting in under 100ms with zero overhead), request body parsing and routing were messy and error-prone. Migrating to Spring Boot provides robust routing, security integration, clean JSON mapping (Jackson), and proper separation of concerns, at the cost of a slightly larger footprint and 20s build compile time.
-- **Trade-off 2: File Database vs. JPA with SQLite/H2**
-  - *Alternative*: Spring Data JPA with an in-memory H2 or SQLite database.
-  - *Trade-off*: Although JPA is standard for enterprise systems, it requires configuring database drivers, schema initializers, and datasource profiles. By keeping our custom, thread-safe, lock-guaranteed CSV Database, we maintained a highly visible, portable datastore that works instantly out of the box with zero external configuration.
-- **Trade-off 3: Serving Static UI via Resources vs. Thymeleaf Views**
-  - *Alternative*: Set up Thymeleaf view resolvers.
-  - *Trade-off*: Placing the dashboard directly in `static/` is simple and fast, avoiding server-side templating engines while still fully integrating with the REST API.
+I did not adopt AI-generated suggestions without review.
 
----
+I evaluated multiple approaches for handling duplicate URLs and selected the one that best matched the requirements. I refined the alias handling logic to ensure aliases remain unique while still supporting idempotent requests for the same URL and alias combination.
 
-### 4. What’s missing, or what you’d do with another day?
-1. **Database Compaction & Append-Only Logs**: As the system grows, rewriting the CSV database file on every write becomes a bottleneck. I would write a compaction thread or transition to a relational database like PostgreSQL.
-2. **Enhanced Dashboard Metrics**: Track User-Agent, Referrer headers, and click timelines to display rich interactive charts using Chart.js on the dashboard.
-3. **Scheduled Cleanup**: Implement Spring's `@Scheduled` annotation to run daily cron jobs to purge expired short codes from the CSV database automatically.
+I also simplified certain implementation details to keep the solution maintainable and easy to reason about.
+
+Additionally, I removed an analytics API that was generated during development because it was outside the scope of the assignment requirements.
+
+3. The two or three biggest trade-offs you made, and the alternatives you considered.
+   Trade-off 1: Duplicate URL handling
+
+Chosen approach:
+Return the existing mapping when the same URL and alias are submitted again.
+
+Alternative considered:
+Generate a new short code for every request.
+
+Reasoning:
+The chosen approach is idempotent, avoids duplicate records, and provides a more predictable user experience.
+
+Trade-off 2: Short-code generation
+
+Chosen approach:
+Use a deterministic short-code generation strategy that minimizes the possibility of collisions.
+
+Alternative considered:
+Generate random strings and retry in case of collisions.
+
+Reasoning:
+A deterministic approach provides stronger guarantees around uniqueness and is easier to reason about as the system scales.
+
+4. What's missing, or what would you do with another day?
+
+Given more time, I would improve the short-code generation strategy to make it more robust and less predictable.
+
+My current implementation focuses on uniqueness, but I would move toward a scheme that combines an encoded incremental identifier with a random component. This would preserve uniqueness while making it significantly harder for users to infer or enumerate URLs based on sequential IDs alone.
+
+I would also add more comprehensive testing around collision handling and edge cases in the code generation flow.

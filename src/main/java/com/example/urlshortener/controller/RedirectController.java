@@ -24,7 +24,7 @@ public class RedirectController {
             return ResponseEntity.notFound().build();
         }
 
-        UrlMapping mapping = service.resolveAndTrack(code);
+        UrlMapping mapping = service.resolve(code);
         if (mapping != null) {
             return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY) // 301 Redirect
                     .header(HttpHeaders.LOCATION, mapping.originalUrl())

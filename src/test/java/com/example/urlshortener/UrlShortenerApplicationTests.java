@@ -105,21 +105,13 @@ class UrlShortenerApplicationTests {
 
     @Test
     void testDatabaseOperations() {
-        UrlMapping m1 = new UrlMapping("xyz", "https://google.com", false, System.currentTimeMillis(), 0);
+        UrlMapping m1 = new UrlMapping("xyz", "https://google.com", false, System.currentTimeMillis());
         database.put(m1);
 
         assertTrue(database.exists("xyz"));
         var fetched = database.get("xyz");
         assertTrue(fetched.isPresent());
         assertEquals("https://google.com", fetched.get().originalUrl());
-        assertEquals(0, fetched.get().clicks());
-
-        // Increment clicks
-        database.incrementClicks("xyz");
-        var updated = database.get("xyz");
-        assertTrue(updated.isPresent());
-        assertEquals(1, updated.get().clicks());
-
     }
 
     @Test

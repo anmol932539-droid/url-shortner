@@ -25,8 +25,7 @@ public class UrlController {
         String code,
         String original_url,
         boolean is_custom,
-        long created_at,
-        int clicks
+        long created_at
     ) {}
 
     @PostMapping("/shorten")
@@ -54,8 +53,7 @@ public class UrlController {
                 mapping.shortCode(),
                 mapping.originalUrl(),
                 mapping.isCustom(),
-                mapping.createdAt(),
-                mapping.clicks()
+                mapping.createdAt()
             );
 
             return ResponseEntity.status(HttpStatus.CREATED).body(response);

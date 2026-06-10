@@ -154,7 +154,7 @@ public class UrlShortenerService {
             }
             
             UrlMapping mapping = new UrlMapping(
-                customAlias, originalUrl, true, System.currentTimeMillis(), 0
+                customAlias, originalUrl, true, System.currentTimeMillis()
             );
             database.put(mapping);
             return mapping;
@@ -171,7 +171,7 @@ public class UrlShortenerService {
             } while (database.exists(shortCode));
 
             UrlMapping mapping = new UrlMapping(
-                shortCode, originalUrl, false, System.currentTimeMillis(), 0
+                shortCode, originalUrl, false, System.currentTimeMillis()
             );
             database.put(mapping);
             return mapping;
@@ -182,13 +182,8 @@ public class UrlShortenerService {
         return database.get(shortCode).orElse(null);
     }
 
-    public UrlMapping resolveAndTrack(String shortCode) {
-        UrlMapping mapping = getMapping(shortCode);
-        if (mapping != null) {
-            database.incrementClicks(shortCode);
-            return getMapping(shortCode);
-        }
-        return null;
+    public UrlMapping resolve(String shortCode) {
+        return getMapping(shortCode);
     }
 
     public long getCounterValue() {

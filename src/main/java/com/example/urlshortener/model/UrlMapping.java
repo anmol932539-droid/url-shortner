@@ -4,6 +4,5 @@ public record UrlMapping(
     String shortCode,
     String originalUrl,
     boolean isCustom,
-    long createdAt,
-    int clicks
+    long createdAt
 ) {}

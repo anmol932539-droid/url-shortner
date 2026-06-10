@@ -30,13 +30,7 @@ public class Database {
     }
 
     public void incrementClicks(String shortCode) {
-        mappings.computeIfPresent(shortCode, (k, mapping) -> new UrlMapping(
-            mapping.shortCode(),
-            mapping.originalUrl(),
-            mapping.isCustom(),
-            mapping.createdAt(),
-            mapping.clicks() + 1
-        ));
+        // Clicks implementation removed
     }
 
     public Map<String, UrlMapping> getAllMappings() {

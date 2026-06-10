@@ -154,11 +154,19 @@ public class UrlShortenerService {
             throw new IllegalArgumentException("Invalid alias.");
         }
         if (database.exists(customAlias)) {
-            throw new IllegalStateException("Alias already in use.");
+            return returnExistingOrThrow(originalUrl, customAlias);
         }
         UrlMapping mapping = new UrlMapping(customAlias, originalUrl, true, System.currentTimeMillis());
         database.put(mapping);
         return mapping;
+    }
+
+    private UrlMapping returnExistingOrThrow(String originalUrl, String alias) {
+        UrlMapping existing = database.get(alias).orElse(null);
+        if (existing != null && existing.getOriginalUrl().equals(originalUrl)) {
+            return existing;
+        }
+        throw new IllegalStateException("Alias already in use.");
     }
 
     private UrlMapping handleRandomAlias(String originalUrl) {
